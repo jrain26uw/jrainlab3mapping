@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <title>Places I Have Been and Places I Want to Go!</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.5.0/mapbox-gl.js"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    #side-panel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 350px;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      padding: 15px;
+      overflow-y: auto;
+      box-shadow: -3px 0 6px rgba(0,0,0,0.25);
+      z-index: 2;
+    }
+
+    h2 { margin-top: 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 8px;
+      border: 1px solid #ccc;
+    }
+
+    th.sortable:hover {
+      cursor: pointer;
+      background: #eee;
+    }
+
+    @media(max-width:1024px) {
+      #side-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="side-panel">
+  <h2>Jack's Travel Guide</h2>
+  <h3>Red = Places I've Been <br> Blue = Places I Want to Go</h3>
+  <table id="data-table">
+    <thead>
+      <tr>
+        <th class="sortable">Name</th>
+        <th class="sortable">Description</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoianJhaW4yNiIsImEiOiJjbWhjcHF3eGswd3c0MmtuMXZwbjN3MDZ0In0.YtlMh8YBzEOKX6hTE-GhjQ';
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v11',
+    center: [10, 30], // Center over Europe-ish
+    zoom: 1.5 // Zoomed out to see most of the world
+  });
+
+
+  // Update these filenames
+  const geo1 = 'assets/places_ive_been.geojson';
+  const geo2 = 'assets/places_to_go.geojson';
+
+  let tableData = [];
+
+  function addData(id, url, color) {
+    map.addSource(id, { type: 'geojson', data: url });
+
+    map.addLayer({
+      id: id + '-layer',
+      type: 'circle',
+      source: id,
+      paint: {
+        'circle-radius': 8,
+        'circle-stroke-width': 2,
+        'circle-color': color,
+        'circle-stroke-color': 'white'
+      }
+    });
+
+    fetch(url).then(r => r.json()).then(data => {
+        data.features.forEach(f => {
+            const props = f.properties;
+            const key = Object.keys(props)[0];        // first property name
+            const value = props[key];                 // value of that property
+
+            tableData.push({
+                name: key,
+                desc: value || ""
+            });
+
+            const coords = f.geometry.coordinates;
+            const popupHTML = `<strong>${key}</strong><br>${value || ''}`;
+
+            new mapboxgl.Marker()
+                .setLngLat(coords)
+                .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(popupHTML))
+                .addTo(map);
+        });
+        populateTable();
+    });
+  }
+
+  function populateTable() {
+    const tbody = document.querySelector('#data-table tbody');
+    tbody.innerHTML = tableData
+      .map(r => `<tr><td>${r.name}</td><td>${r.desc}</td></tr>`) 
+      .join('');
+  }
+
+  document.querySelectorAll('th.sortable').forEach((th, idx) => {
+    th.addEventListener('click', () => {
+      const key = idx === 0 ? 'name' : 'desc';
+      tableData.sort((a,b) => a[key].localeCompare(b[key]));
+      populateTable();
+    });
+  });
+
+  map.on('load', () => {
+    addData('layer1', geo1, 'red');
+    addData('layer2', geo2, 'blue');
+  });
+</script>
+</body>
+</html>
